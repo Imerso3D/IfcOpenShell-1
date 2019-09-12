@@ -33,14 +33,11 @@ IF(NOT "$ENV{PYTHON_LIBRARY}" STREQUAL "")
 	MESSAGE(STATUS "Looking for Python library file in: ${PYTHON_LIBRARY}")
 ENDIF()
 
-# NOTE PYTHONLIBS_FOUND and PYTHONINTERP_FOUND cannot seem to be trusted so
-# we need further checks to see whether the packages were actually found or not.
-FIND_PACKAGE(PythonLibs)
-IF(NOT PYTHONLIBS_FOUND OR "$PYTHON_INCLUDE_DIRS}" STREQUAL "")
+find_package (Python COMPONENTS Interpreter Development)
+IF(NOT Python_FOUND)
 	MESSAGE(FATAL_ERROR "BUILD_IFCPYTHON enabled, but unable to find Python lib or header. Disable BUILD_IFCPYTHON or fix Python paths to proceed.")
 ENDIF()
 
-INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 
 SET(CMAKE_SWIG_FLAGS "")
@@ -56,46 +53,27 @@ SET_SOURCE_FILES_PROPERTIES(IfcPython.i PROPERTIES CPLUSPLUS ON)
 SWIG_ADD_MODULE(ifcopenshell_wrapper python IfcPython.i)
 if("$ENV{LDFLAGS}" MATCHES ".undefined.suppress")
 # On osx there is some state in the python dylib. With `-Wl,undefined,suppress` we can ignore the missing symbols at compile time.
-SWIG_LINK_LIBRARIES(ifcopenshell_wrapper ${IFCOPENSHELL_LIBRARIES} ${OPENCASCADE_LIBRARIES}
-    ${ICU_LIBRARIES} ${Boost_LIBRARIES})
+SWIG_LINK_LIBRARIES(ifcopenshell_wrapper ${IFCOPENSHELL_LIBRARIES} CONAN_PKG::opencascade
+    CONAN_PKG::icu CONAN_PKG::boost)
 else()
-SWIG_LINK_LIBRARIES(ifcopenshell_wrapper ${IFCOPENSHELL_LIBRARIES} ${PYTHON_LIBRARIES} ${OPENCASCADE_LIBRARIES}
-    ${ICU_LIBRARIES} ${Boost_LIBRARIES})
-endif()
-if ((NOT WIN32) AND BUILD_SHARED_LIBS)
-    SET_INSTALL_RPATHS(${SWIG_MODULE_ifcopenshell_wrapper_REAL_NAME} "${IFCDIRS};${OCC_LIBRARY_DIR};${ICU_LIBRARY_DIR}")
+SWIG_LINK_LIBRARIES(ifcopenshell_wrapper ${IFCOPENSHELL_LIBRARIES} Python::Python CONAN_PKG::opencascade
+    CONAN_PKG::icu CONAN_PKG::boost)
 endif()
 
-# Try to find the Python interpreter to get the site-packages
-# directory in which the wrapper can be installed.
-FIND_PACKAGE(PythonInterp)
-IF(PYTHONINTERP_FOUND AND NOT "${PYTHON_EXECUTABLE}" STREQUAL "")
-    EXECUTE_PROCESS(
-        COMMAND ${PYTHON_EXECUTABLE} -c "import sys; from distutils.sysconfig import get_python_lib; sys.stdout.write(get_python_lib(1))"
-        OUTPUT_VARIABLE python_package_dir
-    )
-
-    IF("${python_package_dir}" STREQUAL "")
-        MESSAGE(WARNING "Unable to locate Python site-package directory, unable to install the Python wrapper")
-    ELSE()
-        INSTALL(FILES 
-                "${CMAKE_BINARY_DIR}/ifcwrap/ifcopenshell_wrapper.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/__init__.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/entity_instance.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/file.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/guid.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/main.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/template.py"
-            DESTINATION "${python_package_dir}/ifcopenshell")
-        INSTALL(FILES
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/__init__.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/app.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/code_editor_pane.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/main.py"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/occ_utils.py"
-                DESTINATION "${python_package_dir}/ifcopenshell/geom")
-        INSTALL(TARGETS _ifcopenshell_wrapper DESTINATION "${python_package_dir}/ifcopenshell")
-    ENDIF()
-ELSE()
-    MESSAGE(WARNING "No Python interpreter found, unable to install the Python wrapper")
-ENDIF()
+INSTALL(FILES 
+        "${CMAKE_BINARY_DIR}/ifcwrap/ifcopenshell_wrapper.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/__init__.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/entity_instance.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/file.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/guid.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/main.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/template.py"
+    DESTINATION "ifcopenshell")
+INSTALL(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/__init__.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/app.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/code_editor_pane.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/main.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../ifcopenshell-python/ifcopenshell/geom/occ_utils.py"
+        DESTINATION "ifcopenshell/geom")
+INSTALL(TARGETS _ifcopenshell_wrapper DESTINATION "ifcopenshell")

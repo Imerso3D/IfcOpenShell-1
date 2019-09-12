@@ -19,7 +19,11 @@
 
 cmake_minimum_required (VERSION 2.8.5)
 
-project (IfcOpenShell)
+project (IfcOpenShell LANGUAGES CXX)
+
+include("${CMAKE_BINARY_DIR}/conanbuildinfo.cmake")
+conan_basic_setup(TARGETS)
+
 
 OPTION(UNICODE_SUPPORT "Build IfcOpenShell with Unicode support (requires ICU)." ON)
 OPTION(COLLADA_SUPPORT "Build IfcConvert with COLLADA support (requires OpenCOLLADA)." ON)
@@ -125,10 +129,6 @@ if(USE_MMAP)
     add_definitions(-DUSE_MMAP)
 endif()
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
-MESSAGE(STATUS "Boost include files found in ${Boost_INCLUDE_DIRS}")
-MESSAGE(STATUS "Boost libraries found in ${Boost_LIBRARY_DIRS}")
-
 # Usage:
 # set(SOME_LIRARIES foo bar)
 # add_debug_variants(SOME_LIRARIES "${SOME_LIRARIES}" d)
@@ -173,42 +173,6 @@ ELSE()
 	MESSAGE(STATUS "Looking for Open CASCADE include files in: ${OCC_INCLUDE_DIR}")
 ENDIF()
 
-FIND_FILE(gp_Pnt_hxx "gp_Pnt.hxx" ${OCC_INCLUDE_DIR})
-IF(gp_Pnt_hxx)
-	MESSAGE(STATUS "Header files found")
-ELSE()
-	MESSAGE(FATAL_ERROR "Unable to find header files, aborting")
-ENDIF()
-
-SET(OPENCASCADE_LIBRARY_NAMES
-	TKernel TKMath TKBRep TKGeomBase TKGeomAlgo TKG3d TKG2d TKShHealing TKTopAlgo TKMesh TKPrim TKBool TKBO
-	TKFillet TKSTEP TKSTEPBase TKSTEPAttr TKXSBase TKSTEP209 TKIGES TKOffset
-)
-
-IF("${OCC_LIBRARY_DIR}" STREQUAL "")
-	SET(OCC_LIBRARY_DIR "/usr/lib/" CACHE FILEPATH "Open CASCADE library files")
-	MESSAGE(STATUS "Looking for Open CASCADE library files in: ${OCC_LIBRARY_DIR}")
-	MESSAGE(STATUS "Use OCC_LIBRARY_DIR to specify another directory")
-ELSE()
-	SET(OCC_LIBRARY_DIR ${OCC_LIBRARY_DIR} CACHE FILEPATH "Open CASCADE library files")
-	MESSAGE(STATUS "Looking for Open CASCADE library files in: ${OCC_LIBRARY_DIR}")
-ENDIF()
-
-FIND_LIBRARY(libTKernel NAMES TKernel TKerneld PATHS ${OCC_LIBRARY_DIR} NO_DEFAULT_PATH)
-IF(libTKernel)
-	MESSAGE(STATUS "Library files found")
-ELSE()
-	MESSAGE(FATAL_ERROR "Unable to find library files, aborting")
-ENDIF()
-
-# Use the found libTKernel as a template for all other OCC libraries
-# TODO Extract this into macro/function
-foreach(lib ${OPENCASCADE_LIBRARY_NAMES})
-    # Make sure we'll handle the Windows/MSVC debug postfix convetion too.
-    string(REPLACE TKerneld "${lib}" lib_path "${libTKernel}")
-    string(REPLACE TKernel "${lib}" lib_path "${lib_path}")
-	list(APPEND OPENCASCADE_LIBRARIES "${lib_path}")
-endforeach()
 
 if(MSVC)
     add_definitions(-DHAVE_NO_DLL)
@@ -219,135 +183,6 @@ if (WIN32)
     list(APPEND OPENCASCADE_LIBRARIES ws2_32.lib)
 endif()
 
-IF(UNICODE_SUPPORT)
-	# Find ICU 
-	IF("${ICU_INCLUDE_DIR}" STREQUAL "")
-		MESSAGE(STATUS "No ICU include directory specified")
-	ENDIF()
-
-	IF("${ICU_LIBRARY_DIR}" STREQUAL "")
-		MESSAGE(STATUS "No ICU library directory specified")
-		FIND_LIBRARY(icu NAMES icuuc icuucd PATHS ${ICU_LIBRARY_DIR})
-	ELSE()
-		FIND_LIBRARY(icu NAMES icuuc icuucd PATHS ${ICU_LIBRARY_DIR} NO_DEFAULT_PATH)
-	ENDIF()
-
-	IF(icu)
-		GET_FILENAME_COMPONENT(ICU_LIBRARY_DIR ${icu} PATH)
-
-		ADD_DEFINITIONS(-DHAVE_ICU)
-		MESSAGE(STATUS "ICU libraries found")
-		# NOTE icudata appears to be icudt on Windows/MSVC and icudata on others
-		#      dl is included to resolve dlopen and friends symbols
-		IF(WIN32)
-			FIND_LIBRARY(icudt NAMES icudt PATHS ${ICU_LIBRARY_DIR} NO_DEFAULT_PATH)
-			SET(ICU_LIBRARIES ${icu} ${icudt})
-			add_debug_variants(ICU_LIBRARIES "${ICU_LIBRARIES}" d)
-			# TODO MinGW build would appear to be using dynamic ICU regardless of this definition.
-			ADD_DEFINITIONS(-DU_STATIC_IMPLEMENTATION) # required for static ICU
-		ELSE()
-			FIND_LIBRARY(icudt NAMES icudata PATHS ${ICU_LIBRARY_DIR} NO_DEFAULT_PATH)
-			FIND_LIBRARY(icui18n NAMES icui18n PATHS ${ICU_LIBRARY_DIR} NO_DEFAULT_PATH)
-			FIND_LIBRARY(dl NAMES dl)
-			SET(ICU_LIBRARIES ${icu} ${icudt} ${dl} ${icui18n})
-		ENDIF()
-	ELSE()
-		MESSAGE(FATAL_ERROR "UNICODE_SUPPORT enabled, but unable to find ICU. Disable UNICODE_SUPPORT or fix ICU paths to proceed.")
-	ENDIF()
-ENDIF()
-
-IF(COLLADA_SUPPORT)
-	# Find OpenCOLLADA
-	IF("${OPENCOLLADA_INCLUDE_DIR}" STREQUAL "")
-		MESSAGE(STATUS "No OpenCOLLADA include directory specified")
-		SET(OPENCOLLADA_INCLUDE_DIR "/usr/include/opencollada" CACHE FILEPATH "OpenCOLLADA header files")
-	ELSE()
-		SET(OPENCOLLADA_INCLUDE_DIR "${OPENCOLLADA_INCLUDE_DIR}" CACHE FILEPATH "OpenCOLLADA header files")
-	ENDIF()
-
-	IF("${OPENCOLLADA_LIBRARY_DIR}" STREQUAL "")
-		MESSAGE(STATUS "No OpenCOLLADA library directory specified")
-		FIND_LIBRARY(OPENCOLLADA_FRAMEWORK_LIB NAMES OpenCOLLADAFramework
-			PATHS /usr/lib64/opencollada /usr/lib/opencollada /usr/lib64 /usr/lib /usr/local/lib64 /usr/local/lib)
-		GET_FILENAME_COMPONENT(OPENCOLLADA_LIBRARY_DIR ${OPENCOLLADA_FRAMEWORK_LIB} PATH)
-	ENDIF()
-
-	FIND_LIBRARY(OpenCOLLADAFramework NAMES OpenCOLLADAFramework OpenCOLLADAFrameworkd PATHS ${OPENCOLLADA_LIBRARY_DIR} NO_DEFAULT_PATH)
-    if (OpenCOLLADAFramework)
-        message(STATUS "OpenCOLLADA library files found")
-    else()
-        message(FATAL_ERROR "COLLADA_SUPPORT enabled, but unable to find OpenCOLLADA libraries. "
-            "Disable COLLADA_SUPPORT or fix OpenCOLLADA paths to proceed.")
-    endif()
-
-	SET(OPENCOLLADA_LIBRARY_DIR "${OPENCOLLADA_LIBRARY_DIR}" CACHE FILEPATH "OpenCOLLADA library files")
-
-	SET(OPENCOLLADA_INCLUDE_DIRS "${OPENCOLLADA_INCLUDE_DIR}/COLLADABaseUtils" "${OPENCOLLADA_INCLUDE_DIR}/COLLADAStreamWriter")
-
-	FIND_FILE(COLLADASWStreamWriter_h "COLLADASWStreamWriter.h" ${OPENCOLLADA_INCLUDE_DIRS})
-	IF(COLLADASWStreamWriter_h)
-		MESSAGE(STATUS "OpenCOLLADA header files found")
-		ADD_DEFINITIONS(-DWITH_OPENCOLLADA)
-		SET(OPENCOLLADA_LIBRARY_NAMES
-			GeneratedSaxParser MathMLSolver OpenCOLLADABaseUtils OpenCOLLADAFramework OpenCOLLADASaxFrameworkLoader
-			OpenCOLLADAStreamWriter UTF buffer ftoa
-		)
-
-		# Use the found OpenCOLLADAFramework as a template for all other OpenCOLLADA libraries
-		foreach(lib ${OPENCOLLADA_LIBRARY_NAMES})
-            # Make sure we'll handle the Windows/MSVC debug postfix convetion too.
-            string(REPLACE OpenCOLLADAFrameworkd "${lib}" lib_path "${OpenCOLLADAFramework}")
-            string(REPLACE OpenCOLLADAFramework "${lib}" lib_path "${lib_path}")
- 			list(APPEND OPENCOLLADA_LIBRARIES "${lib_path}")
-		endforeach()
-
-		if("${PCRE_LIBRARY_DIR}" STREQUAL "")
-            if(WIN32)
-                find_library(pcre_library NAMES pcre pcred PATHS ${OPENCOLLADA_LIBRARY_DIR} NO_DEFAULT_PATH)
-            else()
-                find_library(pcre_library NAMES pcre PATHS ${OPENCOLLADA_LIBRARY_DIR})
-            endif()
-			GET_FILENAME_COMPONENT(PCRE_LIBRARY_DIR ${pcre_library} PATH)
-		else()
-			find_library(pcre_library NAMES pcre pcred PATHS ${PCRE_LIBRARY_DIR} NO_DEFAULT_PATH)
-		endif()
-
-		if (pcre_library)
-			SET(OPENCOLLADA_LIBRARY_DIR ${OPENCOLLADA_LIBRARY_DIR} ${PCRE_LIBRARY_DIR})
-            if (MSVC)
-                # Add release lib regardless whether release or debug found. Debug version will be appended below.
-                list(APPEND OPENCOLLADA_LIBRARIES "${PCRE_LIBRARY_DIR}/pcre.lib")
-            else()
-                list(APPEND OPENCOLLADA_LIBRARIES "${pcre_library}")
-            endif()
-        else()
-            message(FATAL_ERROR "COLLADA_SUPPORT enabled, but unable to find PCRE. "
-                "Disable COLLADA_SUPPORT or fix PCRE_LIBRARY_DIR path to proceed.")
-		endif()
-
-		IF(MSVC)
-			add_debug_variants(OPENCOLLADA_LIBRARIES "${OPENCOLLADA_LIBRARIES}" d)
-		ENDIF()
-	ELSE()
-        message(FATAL_ERROR "COLLADA_SUPPORT enabled, but unable to find OpenCOLLADA headers. "
-            "Disable COLLADA_SUPPORT or fix OpenCOLLADA paths to proceed.")
-	ENDIF()
-ENDIF()
-
-# Make sure cross-referenced symbols between static OCC libraries get
-# resolved. Also add thread and rt libraries.
-get_filename_component(libTKernelExt ${libTKernel} EXT)
-if("${libTKernelExt}" STREQUAL ".a")
-    find_package(Threads)
-    # OPENCASCADE_LIBRARIES repeated three times below in order to fix cyclic dependencies - use --start-group ... --end-group instead?
-    set(OPENCASCADE_LIBRARIES ${OPENCASCADE_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-    if (NOT APPLE AND NOT WIN32)
-        set(OPENCASCADE_LIBRARIES ${OPENCASCADE_LIBRARIES} "rt")
-    endif()
-    if (NOT WIN32)
-        set(OPENCASCADE_LIBRARIES ${OPENCASCADE_LIBRARIES} "dl")
-    endif()
-endif()
 
 IF(NOT CMAKE_BUILD_TYPE)
 	SET(CMAKE_BUILD_TYPE "Release")
@@ -425,9 +260,6 @@ ElSE()
     endif()
 ENDIF()
 
-INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${OCC_INCLUDE_DIR} ${OPENCOLLADA_INCLUDE_DIRS}
-	${ICU_INCLUDE_DIR} ${Boost_INCLUDE_DIRS}
-)
 
 function(files_for_ifc_version IFC_VERSION RESULT_NAME)
     set(IFC_PARSE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/ifcparse)
@@ -511,55 +343,6 @@ if(NOT Boost_VERSION LESS 105800)
     add_definitions(-DBOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE)
 endif()
 
-# Detect OCC version on gcc/clang/mingw as
-# -std=c++11 is needed for OCCT >= 7.0.0
-if(NOT MSVC)
-    FIND_FILE(Standard_Version "Standard_Version.hxx" ${OCC_INCLUDE_DIR})
-
-    set(CMAKE_CONFIGURABLE_FILE_CONTENT "
-        #include <Standard_Version.hxx>
-        #include <iostream>
-        int main(int argc, char** argv) {
-            std::cout << OCC_VERSION_COMPLETE;
-        }")
-    configure_file(
-        "${CMAKE_ROOT}/Modules/CMakeConfigurableFile.in"
-        "${CMAKE_BINARY_DIR}/version.cxx" @ONLY)
-
-    try_compile(VERSION_CHECK
-        ${CMAKE_BINARY_DIR}
-        "${CMAKE_BINARY_DIR}/version.cxx"
-        CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${OCC_INCLUDE_DIR}"
-        COPY_FILE "${CMAKE_BINARY_DIR}/version"
-        OUTPUT_VARIABLE OUT
-        COPY_FILE_ERROR ERR
-    )
-
-    if(${VERSION_CHECK})
-        EXECUTE_PROCESS(COMMAND ${CMAKE_BINARY_DIR}/version OUTPUT_VARIABLE OCC_VERSION)
-    else()
-        message(FATAL_ERROR "Failed to compile OCC version test:
-        ${OUT}
-        ------
-        ${ERR}")
-    endif()
-
-    MESSAGE(STATUS "OCC version is ${OCC_VERSION}. Detected from: ${Standard_Version}")
-
-    if(NOT ("${OCC_VERSION}" LESS "7.0.0"))
-        include(CheckCXXCompilerFlag)
-        CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-        if(COMPILER_SUPPORTS_CXX11)
-            add_definitions(-std=c++11)
-        else()
-            message(FATAL_ERROR "OCCT7 requires a compiler with C++11 support")
-        endif()
-    else()
-        add_definitions(-std=c++0x)
-    endif()
-
-endif()
-
 set(IFCOPENSHELL_LIBRARIES IfcParse IfcGeom)
 
 # IfcParse
@@ -579,8 +362,11 @@ set(IFCPARSE_FILES ${IFCPARSE_CPP_FILES} ${IFCPARSE_H_FILES})
 add_library(IfcParse ${IFCPARSE_FILES})
 set_target_properties(IfcParse PROPERTIES COMPILE_FLAGS -DIFC_PARSE_EXPORTS)
 
+TARGET_LINK_LIBRARIES(IfcParse CONAN_PKG::boost)
+
 IF(UNICODE_SUPPORT)
-	TARGET_LINK_LIBRARIES(IfcParse ${ICU_LIBRARIES} ${Boost_LIBRARIES})
+    ADD_DEFINITIONS(-DHAVE_ICU)
+	TARGET_LINK_LIBRARIES(IfcParse CONAN_PKG::icu CONAN_PKG::libxml2)
 ENDIF()
 
 # IfcGeom
@@ -591,7 +377,7 @@ set(IFCGEOM_FILES ${IFCGEOM_CPP_FILES} ${IFCGEOM_H_FILES})
 add_library(IfcGeom ${IFCGEOM_FILES})
 set_target_properties(IfcGeom PROPERTIES COMPILE_FLAGS -DIFC_GEOM_EXPORTS)
 
-TARGET_LINK_LIBRARIES(IfcGeom IfcParse ${OPENCASCADE_LIBRARIES})
+TARGET_LINK_LIBRARIES(IfcGeom IfcParse CONAN_PKG::opencascade)
 
 # IfcConvert
 file(GLOB IFCCONVERT_CPP_FILES ../src/ifcconvert/*.cpp)
@@ -602,23 +388,7 @@ if (IFCCONVERT_DOUBLE_PRECISION)
     set_target_properties(IfcConvert PROPERTIES COMPILE_FLAGS -DIFCCONVERT_DOUBLE_PRECISION)
 endif()
 
-TARGET_LINK_LIBRARIES(IfcConvert ${IFCOPENSHELL_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${Boost_LIBRARIES} ${OPENCOLLADA_LIBRARIES} ${ICU_LIBRARIES})
-if ((NOT WIN32) AND BUILD_SHARED_LIBS)
-    # Only set RPATHs when building shared libraries (i.e. IfcParse and
-    # IfcGeom are dynamically linked). Not necessarily a perfect solution
-    # but probably a good indication of whether RPATHs are necessary.
-    SET_INSTALL_RPATHS(IfcConvert "${IFCOPENSHELL_LIBARY_DIR};${OCC_LIBRARY_DIR};${Boost_LIBRARY_DIRS};${OPENCOLLADA_LIBRARY_DIR};${ICU_LIBRARY_DIR}")
-endif()
-
-# IfcGeomServer
-file(GLOB CPP_FILES ../src/ifcgeomserver/*.cpp)
-file(GLOB H_FILES ../src/ifcgeomserver/*.h)
-set(SOURCE_FILES ${CPP_FILES} ${H_FILES})
-ADD_EXECUTABLE(IfcGeomServer ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(IfcGeomServer ${IFCOPENSHELL_LIBRARIES} ${OPENCASCADE_LIBRARIES} ${Boost_LIBRARIES} ${ICU_LIBRARIES})
-if ((NOT WIN32) AND BUILD_SHARED_LIBS)
-    SET_INSTALL_RPATHS(IfcGeomServer "${IFCOPENSHELL_LIBARY_DIR};${OCC_LIBRARY_DIR};${Boost_LIBRARY_DIRS};${ICU_LIBRARY_DIR}")
-endif()
+TARGET_LINK_LIBRARIES(IfcConvert ${IFCOPENSHELL_LIBRARIES} CONAN_PKG::opencascade CONAN_PKG::boost CONAN_PKG::icu)
 
 IF(BUILD_IFCPYTHON)
 	ADD_SUBDIRECTORY(../src/ifcwrap ifcwrap)
@@ -641,7 +411,7 @@ INSTALL(FILES ${IFCGEOM_H_FILES}
 	DESTINATION ${INCLUDEDIR}/ifcgeom
 )
 
-INSTALL(TARGETS IfcParse IfcGeom IfcConvert IfcGeomServer
+INSTALL(TARGETS IfcParse IfcGeom IfcConvert
 	ARCHIVE DESTINATION ${LIBDIR}
 	LIBRARY DESTINATION ${LIBDIR}
 	RUNTIME DESTINATION ${BINDIR}
