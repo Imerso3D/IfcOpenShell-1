@@ -36,6 +36,7 @@ class IfcOpenShell(ConanFile):
         "icu/62.1@bincrafters/stable",
         "libxml2/2.9.9@bincrafters/stable",
         "swig_installer/3.0.12@imerso/master",
+        "zlib/1.2.11@conan/stable",  # Fix for unspecific dependency zlib/1.2.11 in libxml2/2.9.9@bincrafters/stable
     )
 
     def config_options(self):
