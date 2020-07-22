@@ -33,7 +33,7 @@ IF(NOT "$ENV{PYTHON_LIBRARY}" STREQUAL "")
 	MESSAGE(STATUS "Looking for Python library file in: ${PYTHON_LIBRARY}")
 ENDIF()
 
-find_package (Python COMPONENTS Interpreter Development)
+find_package (Python ${CONAN_SETTINGS_PYTHON_VERSION} EXACT REQUIRED COMPONENTS Interpreter Development)
 IF(NOT Python_FOUND)
 	MESSAGE(FATAL_ERROR "BUILD_IFCPYTHON enabled, but unable to find Python lib or header. Disable BUILD_IFCPYTHON or fix Python paths to proceed.")
 ENDIF()

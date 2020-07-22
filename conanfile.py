@@ -31,12 +31,13 @@ class IfcOpenShell(ConanFile):
     default_options = {"fPIC": True}
 
     requires = (
-        "opencascade/7.3.0@imerso/master",
-        "boost/1.68.0@conan/stable",
-        "icu/62.1@bincrafters/stable",
-        "libxml2/2.9.9@bincrafters/stable",
+        "opencascade/7.3.0@birger/testing",
+        "boost/1.72.0",
+        "icu/64.2",
+        "libxml2/2.9.9",
         "swig_installer/3.0.12@imerso/master",
-        "zlib/1.2.11@conan/stable",  # Fix for unspecific dependency zlib/1.2.11 in libxml2/2.9.9@bincrafters/stable
+        "zlib/1.2.11",
+        "tbb/2020.1",
     )
 
     def config_options(self):

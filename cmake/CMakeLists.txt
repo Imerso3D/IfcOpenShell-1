@@ -274,7 +274,7 @@ function(files_for_ifc_version IFC_VERSION RESULT_NAME)
 endfunction()
 
 if(COMPILE_SCHEMA)
-    find_package(PythonInterp)
+    find_package (Python ${CONAN_SETTINGS_PYTHON_VERSION} EXACT REQUIRED COMPONENTS Interpreter)
     
     IF(NOT PYTHONINTERP_FOUND)
         MESSAGE(FATAL_ERROR "A Python interpreter is necessary when COMPILE_SCHEMA is enabled. Disable COMPILE_SCHEMA or fix Python paths to proceed.")
@@ -377,7 +377,7 @@ set(IFCGEOM_FILES ${IFCGEOM_CPP_FILES} ${IFCGEOM_H_FILES})
 add_library(IfcGeom ${IFCGEOM_FILES})
 set_target_properties(IfcGeom PROPERTIES COMPILE_FLAGS -DIFC_GEOM_EXPORTS)
 
-TARGET_LINK_LIBRARIES(IfcGeom IfcParse CONAN_PKG::opencascade)
+TARGET_LINK_LIBRARIES(IfcGeom IfcParse CONAN_PKG::opencascade CONAN_PKG::tbb)
 
 # IfcConvert
 file(GLOB IFCCONVERT_CPP_FILES ../src/ifcconvert/*.cpp)
@@ -388,7 +388,7 @@ if (IFCCONVERT_DOUBLE_PRECISION)
     set_target_properties(IfcConvert PROPERTIES COMPILE_FLAGS -DIFCCONVERT_DOUBLE_PRECISION)
 endif()
 
-TARGET_LINK_LIBRARIES(IfcConvert ${IFCOPENSHELL_LIBRARIES} CONAN_PKG::opencascade CONAN_PKG::boost CONAN_PKG::icu)
+TARGET_LINK_LIBRARIES(IfcConvert ${IFCOPENSHELL_LIBRARIES} CONAN_PKG::opencascade CONAN_PKG::boost CONAN_PKG::icu CONAN_PKG::tbb "${CONAN_LIB_DIRS_TBB}/libtbbmalloc.so.2")
 
 IF(BUILD_IFCPYTHON)
 	ADD_SUBDIRECTORY(../src/ifcwrap ifcwrap)
